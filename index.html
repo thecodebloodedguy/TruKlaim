@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Service Request - Mimic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .section-title { color: #1f2937; font-weight: 600; font-size: 1.125rem; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; }
+        .input-label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem; }
+        .form-input { 
+            width: 100%; 
+            border-color: #d1d5db; 
+            border-radius: 0.375rem; 
+            padding: 0.5rem 0.75rem; 
+            font-size: 0.875rem; 
+            line-height: 1.5rem;
+            border-width: 1px;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        .form-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+            font-weight: 500;
+            padding: 0.625rem 1.25rem;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        
+        /* Modal Styles */
+        .modal { opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+
+        /* Animation for new entries */
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white p-1.5 rounded">
+                    <i class="fa-solid fa-wrench"></i>
+                </div>
+                <h1 class="text-xl font-bold text-gray-800">New Service Request</h1>
+            </div>
+            <button type="button" onclick="submitForm()" class="btn-primary text-sm">
+                SEND REQUEST
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Form Content -->
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <form id="serviceRequestForm" onsubmit="event.preventDefault(); submitForm();">
+            
+            <!-- Context: Asset & Location -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="section-title text-blue-800"><i class="fa-solid fa-truck-fast mr-2"></i>Asset & Service Location</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="input-label" for="assetId">Selected Asset *</label>
+                        <div class="relative">
+                            <input type="text" id="assetId" name="assetId" class="form-input bg-gray-50" placeholder="e.g. TRUCK-1042" value="TRUCK-1042" readonly>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                <i class="fa-solid fa-lock"></i>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Asset selected in previous step.</p>
+                    </div>
+                    <div>
+                        <label class="input-label" for="serviceLocation">Service Location *</label>
+                        <input type="text" id="serviceLocation" name="serviceLocation" class="form-input" placeholder="Search for location..." value="Downtown Truck Repair Center">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breakdown Information (Multi-entry) -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-2 mb-4">
+                    <h2 class="section-title border-0 mb-0 pb-0"><i class="fa-solid fa-triangle-exclamation mr-2 text-red-500"></i>Breakdown Information</h2>
+                    <button type="button" onclick="addBreakdownEntry()" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Another Complaint
+                    </button>
+                </div>
+                
+                <div id="breakdownContainer" class="space-y-4">
+                    <!-- Default Entry -->
+                    <div class="breakdown-entry bg-gray-50 p-4 rounded-md border border-gray-200 relative group">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="input-label">Complaint / Fault *</label>
+                                <input type="text" name="complaint[]" class="form-input" placeholder="e.g. Engine overheating warning light on" required>
+                            </div>
+                            <div>
+                                <label class="input-label">Notes</label>
+                                <textarea name="notes[]" rows="2" class="form-input" placeholder="Add additional details about the issue..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary Contact -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="section-title"><i class="fa-solid fa-user mr-2 text-gray-600"></i>Primary Contact</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="input-label" for="contactName">Primary Contact Name *</label>
+                        <input type="text" id="contactName" name="contactName" class="form-input" placeholder="Full Name">
+                    </div>
+                    <div>
+                        <label class="input-label" for="contactPhone">Primary Contact Phone</label>
+                        <input type="tel" id="contactPhone" name="contactPhone" class="form-input" placeholder="(555) 000-0000">
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <label class="input-label mb-2">Driver</label>
+                    <div class="flex items-center mb-3">
+                        <input id="sameAsContact" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" onchange="toggleDriverInfo()">
+                        <label for="sameAsContact" class="ml-2 block text-sm text-gray-700 select-none cursor-pointer">
+                            Same as primary contact
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <input type="text" id="driverName" name="driverName" class="form-input" placeholder="Driver Name">
+                        </div>
+                        <div>
+                            <input type="tel" id="driverPhone" name="driverPhone" class="form-input" placeholder="Driver Phone">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location Details -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="section-title"><i class="fa-solid fa-location-dot mr-2 text-gray-600"></i>Breakdown Location</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="input-label" for="city">City</label>
+                        <input type="text" id="city" name="city" class="form-input" placeholder="City">
+                    </div>
+                    <div>
+                        <label class="input-label" for="state">State</label>
+                        <input type="text" id="state" name="state" class="form-input" placeholder="State/Province">
+                    </div>
+                    <div>
+                        <label class="input-label" for="zip">Zip/Postal</label>
+                        <input type="text" id="zip" name="zip" class="form-input" placeholder="Zip Code">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="input-label" for="specificLocation">Specific Location / Address</label>
+                        <input type="text" id="specificLocation" name="specificLocation" class="form-input" placeholder="e.g. I-95 Southbound Mile Marker 42">
+                    </div>
+                    <div>
+                        <label class="input-label" for="downTime">Asset Down Time</label>
+                        <input type="datetime-local" id="downTime" name="downTime" class="form-input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- VMRS Codes -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-2 mb-4">
+                    <h2 class="section-title border-0 mb-0 pb-0"><i class="fa-solid fa-barcode mr-2 text-gray-600"></i>VMRS Codes</h2>
+                    <div class="flex gap-2">
+                        <button type="button" id="loadDefaultBtn" onclick="triggerLoadDefaultVMRS()" class="text-xs text-green-600 hover:text-green-800 font-medium flex items-center bg-green-50 px-2 py-1 rounded border border-green-200 transition-colors" title="Load the full VMRS list">
+                            <i class="fa-solid fa-refresh mr-1"></i> Load Full List
+                        </button>
+                        <label class="cursor-pointer text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center bg-blue-50 px-2 py-1 rounded border border-blue-200 transition-colors">
+                            <i class="fa-solid fa-file-import mr-1"></i> Load VMRS List
+                            <input type="file" id="vmrsFileUpload" class="hidden" accept=".csv, .xlsx, .xls" onchange="handleVMRSFile(this)">
+                        </label>
+                    </div>
+                </div>
+                <p id="vmrsStatus" class="text-xs text-gray-500 mb-3 hidden">Using default VMRS subset.</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="input-label" for="vmrsSystem">System (3-Digit)</label>
+                        <select id="vmrsSystem" name="vmrsSystem" class="form-input bg-white" onchange="updateAssemblies()">
+                            <option value="">Select System...</option>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="input-label" for="vmrsAssembly">Assembly (6-Digit)</label>
+                        <select id="vmrsAssembly" name="vmrsAssembly" class="form-input bg-white" disabled onchange="updateComponents()">
+                            <option value="">Select System first...</option>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="input-label" for="vmrsComponent">Component (9-Digit)</label>
+                        <select id="vmrsComponent" name="vmrsComponent" class="form-input bg-white" disabled>
+                            <option value="">Select Assembly first...</option>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="input-label" for="vmrsPriority">Priority</label>
+                        <select id="vmrsPriority" name="vmrsPriority" class="form-input bg-white">
+                            <option value="Routine">Routine</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="input-label" for="vmrsReason">Reason for Repair</label>
+                        <select id="vmrsReason" name="vmrsReason" class="form-input bg-white">
+                            <option value="">Select Reason...</option>
+                            <option value="Breakdown">Breakdown</option>
+                            <option value="Driver Report">Driver Report</option>
+                            <option value="PM">Preventive Maintenance</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Asset & Trailer Details -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="section-title"><i class="fa-solid fa-trailer mr-2 text-gray-600"></i>Asset / Trailer Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="input-label" for="mileage">Mileage / Odometer</label>
+                        <div class="relative">
+                            <input type="number" id="mileage" name="mileage" class="form-input pr-12" placeholder="0">
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-500 text-sm">
+                                mi
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="input-label" for="trailerNumber">Trailer #</label>
+                        <input type="text" id="trailerNumber" name="trailerNumber" class="form-input" placeholder="Trailer ID">
+                    </div>
+                    <div>
+                        <label class="input-label" for="trailerLoaded">Trailer Loaded?</label>
+                        <select id="trailerLoaded" name="trailerLoaded" class="form-input bg-white">
+                            <option value="no">No (Empty)</option>
+                            <option value="yes">Yes (Loaded)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Info -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="section-title"><i class="fa-solid fa-clipboard-list mr-2 text-gray-600"></i>Administrative</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="input-label" for="poNumber">Purchase Order (PO) #</label>
+                        <input type="text" id="poNumber" name="poNumber" class="form-input" placeholder="PO Number">
+                    </div>
+                    <div>
+                        <label class="input-label" for="authNumber">Authentication #</label>
+                        <input type="text" id="authNumber" name="authNumber" class="form-input" placeholder="Auth Number">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attachments (Updated for Individual Descriptions) -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-2 mb-4">
+                    <h2 class="section-title border-0 mb-0 pb-0"><i class="fa-solid fa-paperclip mr-2 text-gray-600"></i>Attachments</h2>
+                    <button type="button" onclick="document.getElementById('fileUpload').click()" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Attachment
+                    </button>
+                </div>
+
+                <!-- Drop Zone -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer mb-4" onclick="document.getElementById('fileUpload').click()">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2"></i>
+                    <p class="text-sm text-gray-600 font-medium">Click to upload files or drag and drop</p>
+                    <p class="text-xs text-gray-400">SVG, PNG, JPG or PDF (MAX. 800x400px)</p>
+                    <input type="file" id="fileUpload" class="hidden" multiple onchange="handleFileSelect(this)">
+                </div>
+                
+                <!-- File List Container -->
+                <div id="fileListContainer" class="space-y-3 mb-4">
+                    <!-- Dynamic file items will appear here -->
+                    <p id="noAttachmentsMsg" class="text-sm text-gray-400 italic text-center">No files attached yet.</p>
+                </div>
+
+                <!-- General Description (Restored) -->
+                <div>
+                    <label class="input-label" for="generalAttachmentDesc">General Attachment Notes</label>
+                    <input type="text" id="generalAttachmentDesc" name="generalAttachmentDesc" class="form-input" placeholder="Summary info (e.g. Photos of accident site)...">
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex items-center justify-end gap-4 border-t border-gray-200 pt-6">
+                <button type="button" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:outline-none focus:ring-blue-300">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-primary">
+                    SEND REQUEST
+                </button>
+            </div>
+
+        </form>
+    </main>
+
+    <!-- JSON Output Modal -->
+    <div id="jsonModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800">Request Data (JSON)</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-0 overflow-hidden flex-1 relative bg-gray-900">
+                <pre class="w-full h-full p-6 overflow-auto text-green-400 font-mono text-sm leading-relaxed" id="jsonOutput"></pre>
+                <div class="absolute top-4 right-4 flex gap-2">
+                    <span class="text-xs text-green-400 bg-gray-800 px-2 py-1 rounded border border-gray-700">Downloaded <i class="fa-solid fa-check ml-1"></i></span>
+                    <button onclick="copyToClipboard()" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded transition-colors border border-gray-600">
+                        <i class="fa-regular fa-copy mr-1"></i> Copy
+                    </button>
+                </div>
+            </div>
+            <div class="p-5 border-t border-gray-100 flex justify-end">
+                <button onclick="closeModal()" class="btn-primary">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- ATTACHMENT LOGIC (With descriptions) ---
+        let attachmentList = []; // Stores objects: { file: FileObject, description: String }
+
+        function handleFileSelect(input) {
+            if (input.files && input.files.length > 0) {
+                // Convert FileList to custom object structure
+                const newFiles = Array.from(input.files).map(file => ({
+                    file: file,
+                    description: '' // Default empty description
+                }));
+                
+                attachmentList = attachmentList.concat(newFiles);
+                renderAttachments();
+                
+                // Clear input to allow selecting same file again if needed
+                input.value = ''; 
+            }
+        }
+
+        function updateAttachmentDesc(index, value) {
+            if (attachmentList[index]) {
+                attachmentList[index].description = value;
+            }
+        }
+
+        function removeAttachment(index) {
+            attachmentList.splice(index, 1);
+            renderAttachments();
+        }
+
+        function renderAttachments() {
+            const container = document.getElementById('fileListContainer');
+            const noMsg = document.getElementById('noAttachmentsMsg');
+            
+            // Clear current list (except the "no message" placeholder logic)
+            container.innerHTML = '';
+
+            if (attachmentList.length === 0) {
+                container.appendChild(noMsg);
+                noMsg.classList.remove('hidden');
+                return;
+            } else {
+                noMsg.classList.add('hidden');
+                container.appendChild(noMsg); // Keep it in DOM but hidden
+            }
+            
+            attachmentList.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 border border-gray-200 rounded-lg p-3 fade-in';
+                div.innerHTML = `
+                    <div class="flex items-start gap-4">
+                        <div class="flex-shrink-0 mt-1">
+                             <i class="fa-regular fa-file-lines text-2xl text-blue-500"></i>
+                        </div>
+                        <div class="flex-grow min-w-0">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 truncate">${item.file.name}</p>
+                                    <p class="text-xs text-gray-500">${formatFileSize(item.file.size)}</p>
+                                </div>
+                                <button type="button" onclick="removeAttachment(${index})" class="text-gray-400 hover:text-red-500 transition-colors">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <input 
+                                type="text" 
+                                class="form-input text-sm py-1.5" 
+                                placeholder="Describe this file (e.g. Front bumper damage)..." 
+                                value="${item.description.replace(/"/g, '&quot;')}"
+                                oninput="updateAttachmentDesc(${index}, this.value)"
+                            >
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // --- VMRS DATA & LOGIC ---
+        // Pre-populated standard subset
+        window.vmrsData = {
+            "001": { 
+                desc: "AIR CONDITIONING, HEATING & VENTILATING",
+                assemblies: {
+                    "001-001": { desc: "AIR CONDITIONING", components: { "001-001-002": "COMPRESSOR", "001-001-005": "BEARING - COMPRESSOR" } },
+                    "001-002": { desc: "HEATING UNIT", components: { "001-002-001": "HEATER CORE", "001-002-005": "BLOWER MOTOR" } }
+                }
+            },
+            "013": {
+                desc: "BRAKES",
+                assemblies: {
+                    "013-001": { desc: "FRONT BRAKES", components: { "013-001-001": "SHOE/PAD - FRONT", "013-001-017": "ROTOR - FRONT", "013-001-015": "CALIPER - FRONT" } },
+                    "013-002": { desc: "REAR BRAKES", components: { "013-002-001": "SHOE/PAD - REAR", "013-002-026": "DRUM - REAR" } },
+                    "013-003": { desc: "AIR SYSTEM", components: { "013-003-001": "COMPRESSOR", "013-003-007": "VALVE - RELAY" } }
+                }
+            },
+            "015": {
+                desc: "STEERING",
+                assemblies: {
+                    "015-001": { desc: "FRAME/STEERING", components: { "015-001-001": "GEAR BOX" } },
+                    "015-002": { desc: "POWER STEERING", components: { "015-002-001": "PUMP" } }
+                }
+            },
+            "016": {
+                desc: "SUSPENSION",
+                assemblies: {
+                    "016-001": { desc: "FRONT SUSPENSION", components: { "016-001-001": "SPRING - LEAF", "016-001-002": "SHOCK ABSORBER" } },
+                    "016-002": { desc: "REAR SUSPENSION", components: { "016-002-001": "SPRING", "016-002-002": "AIR BAG" } }
+                }
+            },
+            "017": {
+                desc: "TIRES, TUBES, LINERS & VALVES",
+                assemblies: {
+                    "017-001": { desc: "FRONT TIRES", components: { "017-001-001": "TIRE", "017-001-002": "VALVE STEM" } },
+                    "017-002": { desc: "REAR TIRES", components: { "017-002-001": "TIRE", "017-002-002": "VALVE STEM" } }
+                }
+            },
+            "042": {
+                desc: "COOLING SYSTEM",
+                assemblies: {
+                    "042-001": { desc: "RADIATOR", components: { "042-001-001": "RADIATOR CORE", "042-001-002": "CAP" } },
+                    "042-002": { desc: "HOSES", components: { "042-002-001": "HOSE - UPPER", "042-002-002": "HOSE - LOWER" } }
+                }
+            },
+            "043": {
+                desc: "EXHAUST SYSTEM",
+                assemblies: {
+                    "043-001": { desc: "EXHAUST", components: { "043-001-001": "MUFFLER", "043-001-003": "PIPE - EXHAUST" } }
+                }
+            },
+            "044": {
+                desc: "FUEL SYSTEM",
+                assemblies: {
+                    "044-001": { desc: "TANKS", components: { "044-001-001": "TANK - FUEL", "044-001-004": "CAP - FUEL TANK" } },
+                    "044-002": { desc: "LINES/PUMPS", components: { "044-002-003": "PUMP - FUEL", "044-002-005": "FILTER - FUEL" } }
+                }
+            },
+            "045": {
+                desc: "POWER PLANT",
+                assemblies: {
+                    "045-001": { desc: "ENGINE", components: { "045-001-001": "BLOCK", "045-001-005": "HEAD", "045-001-026": "GASKET - HEAD" } },
+                    "045-002": { desc: "LUBRICATION", components: { "045-002-001": "PUMP - OIL", "045-002-006": "FILTER - OIL" } }
+                }
+            }
+        };
+
+        function populateSystems() {
+            const systemSelect = document.getElementById('vmrsSystem');
+            systemSelect.innerHTML = '<option value="">Select System...</option>';
+            
+            const systems = Object.keys(window.vmrsData).sort();
+            systems.forEach(sysCode => {
+                const opt = document.createElement('option');
+                opt.value = sysCode;
+                opt.textContent = `${sysCode} - ${window.vmrsData[sysCode].desc}`;
+                systemSelect.appendChild(opt);
+            });
+        }
+
+        function updateAssemblies() {
+            const sysCode = document.getElementById('vmrsSystem').value;
+            const assemblySelect = document.getElementById('vmrsAssembly');
+            const componentSelect = document.getElementById('vmrsComponent');
+            
+            // Reset
+            assemblySelect.innerHTML = '<option value="">Select Assembly...</option>';
+            componentSelect.innerHTML = '<option value="">Select Assembly first...</option>';
+            componentSelect.disabled = true;
+
+            if (sysCode && window.vmrsData[sysCode]) {
+                assemblySelect.disabled = false;
+                const assemblies = window.vmrsData[sysCode].assemblies;
+                Object.keys(assemblies).sort().forEach(asmCode => {
+                    const opt = document.createElement('option');
+                    opt.value = asmCode;
+                    opt.textContent = `${asmCode} - ${assemblies[asmCode].desc}`;
+                    assemblySelect.appendChild(opt);
+                });
+            } else {
+                assemblySelect.disabled = true;
+            }
+        }
+
+        function updateComponents() {
+            const sysCode = document.getElementById('vmrsSystem').value;
+            const asmCode = document.getElementById('vmrsAssembly').value;
+            const componentSelect = document.getElementById('vmrsComponent');
+            
+            componentSelect.innerHTML = '<option value="">Select Component...</option>';
+
+            if (sysCode && asmCode && window.vmrsData[sysCode]?.assemblies[asmCode]) {
+                componentSelect.disabled = false;
+                const components = window.vmrsData[sysCode].assemblies[asmCode].components;
+                Object.keys(components).sort().forEach(compCode => {
+                    const opt = document.createElement('option');
+                    opt.value = compCode;
+                    opt.textContent = `${compCode} - ${components[compCode]}`;
+                    componentSelect.appendChild(opt);
+                });
+            } else {
+                componentSelect.disabled = true;
+            }
+        }
+
+        // --- File Handling Functions (VMRS) ---
+
+        function handleVMRSFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const name = file.name.toLowerCase();
+            
+            if (name.endsWith('.csv')) {
+                parseCSV(file);
+            } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                parseExcel(file);
+            } else {
+                alert("Please upload a .csv, .xlsx, or .xls file.");
+            }
+        }
+
+        function parseCSV(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                const rows = [];
+                
+                // Simple CSV line parser
+                for (let i = 1; i < lines.length; i++) { // Skip header row 0
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    // Regex to handle CSV with quotes
+                    const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                    if (matches) {
+                         const row = matches.map(s => s.replace(/^"|"$/g, '').trim());
+                         rows.push(row);
+                    }
+                }
+                loadVMRSData(rows, "CSV");
+            };
+            reader.readAsText(file);
+        }
+
+        function parseExcel(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // raw: false ensures cells are treated as text (keeping leading zeros)
+                const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false});
+                
+                // Remove header row if present
+                if (rows.length > 0) rows.shift(); 
+                
+                loadVMRSData(rows, "Excel");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Common loader for both CSV and Excel rows
+        // Expected Row Format: [SystemCode, AssemblyCode, ComponentCode, Description]
+        // E.g. ["001", "001-001", "001-001-001", "DESC..."]
+        function loadVMRSData(rows, sourceType) {
+            const newVmrsData = {};
+            let componentCount = 0;
+
+            rows.forEach(row => {
+                if (!row || row.length < 4) return;
+                
+                const sysCode = (row[0] || "").toString().trim();
+                const asmCode = (row[1] || "").toString().trim();
+                const compCode = (row[2] || "").toString().trim();
+                const desc = (row[3] || "").toString().trim();
+
+                if (!sysCode || !asmCode || !compCode) return;
+
+                // 1. System Level (e.g., Component ends in -000-000)
+                if (!newVmrsData[sysCode]) {
+                    newVmrsData[sysCode] = { desc: "Unknown System", assemblies: {} };
+                }
+                if (compCode.endsWith("-000-000") || compCode.endsWith("000000")) {
+                    newVmrsData[sysCode].desc = desc;
+                    return; 
+                }
+
+                // 2. Assembly Level (e.g., Component ends in -000)
+                if ((compCode.endsWith("-000") || compCode.endsWith("000")) && !compCode.endsWith("-000-000")) {
+                    if (!newVmrsData[sysCode].assemblies[asmCode]) {
+                        newVmrsData[sysCode].assemblies[asmCode] = { desc: desc, components: {} };
+                    } else {
+                        newVmrsData[sysCode].assemblies[asmCode].desc = desc;
+                    }
+                    return;
+                }
+
+                // 3. Component Level (Specific item)
+                if (!newVmrsData[sysCode].assemblies[asmCode]) {
+                    newVmrsData[sysCode].assemblies[asmCode] = { desc: `Assembly ${asmCode}`, components: {} };
+                }
+                newVmrsData[sysCode].assemblies[asmCode].components[compCode] = desc;
+                componentCount++;
+            });
+
+            if (Object.keys(newVmrsData).length > 0) {
+                window.vmrsData = newVmrsData;
+                populateSystems();
+                updateAssemblies(); // clear dependents
+                
+                const status = document.getElementById('vmrsStatus');
+                status.textContent = `Loaded ${Object.keys(newVmrsData).length} Systems and ${componentCount} Components from ${sourceType}.`;
+                status.classList.remove('hidden');
+                status.classList.remove('text-gray-500');
+                status.classList.add('text-green-600', 'font-medium');
+            } else {
+                alert("No valid VMRS data found in file. Please ensure columns match: System, Assembly, Component, Description.");
+            }
+        }
+
+        // Initialize - Load Default VMRS File
+        document.addEventListener('DOMContentLoaded', function() {
+            populateSystems();
+            // Create hidden file input for loading default file
+            loadDefaultVMRSFile();
+        });
+
+        // Function to load default VMRS file using FileReader API
+        function loadDefaultVMRSFile() {
+            const filePath = 'VMRS-Full-List.xlsx';
+            
+            fetch(filePath)
+                .then(response => {
+                    console.log('Fetch response status:', response.status);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    console.log('File loaded, size:', arrayBuffer.byteLength);
+                    try {
+                        const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+                        console.log('Workbook loaded, sheets:', workbook.SheetNames);
+                        
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        
+                        // Parse with raw: false to preserve leading zeros
+                        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false});
+                        console.log('Total rows parsed:', rows.length);
+                        console.log('First row:', rows[0]);
+                        
+                        // Remove header row if present
+                        if (rows.length > 0) rows.shift();
+                        
+                        console.log('Rows after removing header:', rows.length);
+                        loadVMRSData(rows, "Default VMRS Full List");
+                    } catch(parseError) {
+                        console.error('Error parsing Excel file:', parseError);
+                    }
+                })
+                .catch(error => {
+                    console.warn('Could not load default VMRS file via fetch:', error);
+                    console.warn('This is normal - the file may not be accessible via HTTP. Using pre-populated data.');
+                });
+        }
+
+        // Trigger function to reload the default VMRS file
+        function triggerLoadDefaultVMRS() {
+            const btn = document.getElementById('loadDefaultBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading...';
+            
+            loadDefaultVMRSFile();
+            
+            // Re-enable button after 2 seconds
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-refresh mr-1"></i> Load Full List';
+            }, 2000);
+        }
+
+        // --- REST OF FORM LOGIC ---
+
+        // Breakdown Entry Management
+        function addBreakdownEntry() {
+            const container = document.getElementById('breakdownContainer');
+            
+            const newEntry = document.createElement('div');
+            newEntry.className = 'breakdown-entry bg-gray-50 p-4 rounded-md border border-gray-200 relative group fade-in';
+            newEntry.innerHTML = `
+                <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" onclick="removeBreakdownEntry(this)" class="text-red-400 hover:text-red-600 p-1">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="input-label">Complaint / Fault *</label>
+                        <input type="text" name="complaint[]" class="form-input" placeholder="e.g. Engine overheating warning light on" required>
+                    </div>
+                    <div>
+                        <label class="input-label">Notes</label>
+                        <textarea name="notes[]" rows="2" class="form-input" placeholder="Add additional details about the issue..."></textarea>
+                    </div>
+                </div>
+            `;
+            container.appendChild(newEntry);
+        }
+
+        function removeBreakdownEntry(button) {
+            const container = document.getElementById('breakdownContainer');
+            if (container.children.length > 1) {
+                button.closest('.breakdown-entry').remove();
+            } else {
+                alert("You must have at least one breakdown complaint.");
+            }
+        }
+
+        // Checkbox Logic for Driver Info
+        function toggleDriverInfo() {
+            const checkbox = document.getElementById('sameAsContact');
+            const contactName = document.getElementById('contactName').value;
+            const contactPhone = document.getElementById('contactPhone').value;
+            
+            const driverName = document.getElementById('driverName');
+            const driverPhone = document.getElementById('driverPhone');
+
+            if (checkbox.checked) {
+                driverName.value = contactName;
+                driverPhone.value = contactPhone;
+                driverName.setAttribute('readonly', true);
+                driverPhone.setAttribute('readonly', true);
+                driverName.classList.add('bg-gray-50');
+                driverPhone.classList.add('bg-gray-50');
+            } else {
+                driverName.value = '';
+                driverPhone.value = '';
+                driverName.removeAttribute('readonly');
+                driverPhone.removeAttribute('readonly');
+                driverName.classList.remove('bg-gray-50');
+                driverPhone.classList.remove('bg-gray-50');
+            }
+        }
+
+        // Listen for changes in contact info to update driver info real-time if checked
+        document.getElementById('contactName').addEventListener('input', () => {
+            if(document.getElementById('sameAsContact').checked) toggleDriverInfo();
+        });
+        document.getElementById('contactPhone').addEventListener('input', () => {
+            if(document.getElementById('sameAsContact').checked) toggleDriverInfo();
+        });
+
+        // Form Submission & JSON Generation
+        function submitForm() {
+            // Collect Breakdown Entries
+            const breakdownEntries = Array.from(document.querySelectorAll('.breakdown-entry')).map(entry => {
+                return {
+                    complaint: entry.querySelector('input[name="complaint[]"]').value,
+                    notes: entry.querySelector('textarea[name="notes[]"]').value
+                };
+            });
+
+            // 1. Gather Data
+            const formData = {
+                context: {
+                    assetId: document.getElementById('assetId').value,
+                    serviceLocation: document.getElementById('serviceLocation').value
+                },
+                breakdownInfo: breakdownEntries,
+                contact: {
+                    primaryName: document.getElementById('contactName').value,
+                    primaryPhone: document.getElementById('contactPhone').value,
+                    driver: {
+                        isSameAsPrimary: document.getElementById('sameAsContact').checked,
+                        name: document.getElementById('driverName').value,
+                        phone: document.getElementById('driverPhone').value
+                    }
+                },
+                location: {
+                    city: document.getElementById('city').value,
+                    state: document.getElementById('state').value,
+                    zip: document.getElementById('zip').value,
+                    specificLocation: document.getElementById('specificLocation').value,
+                    downTime: document.getElementById('downTime').value
+                },
+                vmrs: {
+                    system: document.getElementById('vmrsSystem').value,
+                    assembly: document.getElementById('vmrsAssembly').value,
+                    component: document.getElementById('vmrsComponent').value,
+                    priority: document.getElementById('vmrsPriority').value,
+                    reason: document.getElementById('vmrsReason').value
+                },
+                assetDetails: {
+                    mileage: document.getElementById('mileage').value,
+                    trailerNumber: document.getElementById('trailerNumber').value,
+                    trailerLoaded: document.getElementById('trailerLoaded').value === 'yes'
+                },
+                admin: {
+                    poNumber: document.getElementById('poNumber').value,
+                    authNumber: document.getElementById('authNumber').value
+                },
+                attachments: {
+                    generalNotes: document.getElementById('generalAttachmentDesc').value,
+                    files: attachmentList.map(item => ({
+                        fileName: item.file.name,
+                        description: item.description
+                    }))
+                },
+                submittedAt: new Date().toISOString()
+            };
+
+            // 2. Prepare JSON
+            const jsonString = JSON.stringify(formData, null, 4);
+            
+            // 3. Download JSON
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `service_request_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // 4. Show Modal (for feedback)
+            document.getElementById('jsonOutput').textContent = jsonString;
+            document.getElementById('jsonModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('jsonModal').classList.remove('active');
+        }
+
+        function copyToClipboard() {
+            const text = document.getElementById('jsonOutput').textContent;
+            
+            // Fallback for older browsers or if navigator.clipboard fails
+            if (!navigator.clipboard) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert("JSON copied to clipboard!");
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                }
+                document.body.removeChild(textArea);
+                return;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert("JSON copied to clipboard!");
+            }, (err) => {
+                console.error('Async: Could not copy text: ', err);
+            });
+        }
+
+        // Set default downtime to now
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('downTime').value = now.toISOString().slice(0,16);
+
+    </script>
+</body>
+</html>
