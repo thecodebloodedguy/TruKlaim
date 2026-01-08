@@ -310,6 +310,9 @@
                 <button type="button" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:outline-none focus:ring-blue-300">
                     Cancel
                 </button>
+                <button type="button" onclick="verifyDetails()" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors">
+                    <i class="fa-solid fa-magnifying-glass mr-2"></i> Verify Details
+                </button>
                 <button type="submit" class="btn-primary">
                     Download JSON
                 </button>
@@ -339,6 +342,49 @@
             <div class="p-5 border-t border-gray-100 flex justify-end">
                 <button onclick="closeModal()" class="btn-primary">
                     Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verification Results Modal -->
+    <div id="verificationModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800">
+                    <i class="fa-solid fa-circle-check text-blue-600 mr-2"></i> Report Verification
+                </h3>
+                <button onclick="closeVerificationModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-auto flex-1 space-y-6">
+                <!-- Issues Section -->
+                <div>
+                    <h4 class="font-semibold text-red-600 mb-3 flex items-center">
+                        <i class="fa-solid fa-triangle-exclamation mr-2"></i> Issues Found
+                    </h4>
+                    <div id="issuesContainer" class="space-y-3">
+                        <!-- Issues will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Suggestions Section -->
+                <div>
+                    <h4 class="font-semibold text-green-600 mb-3 flex items-center">
+                        <i class="fa-solid fa-lightbulb mr-2"></i> Suggestions / Questions
+                    </h4>
+                    <div id="suggestionsContainer" class="space-y-3">
+                        <!-- Suggestions will be populated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="closeVerificationModal()" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Close
+                </button>
+                <button onclick="submitForm()" class="btn-primary">
+                    Continue to Submit
                 </button>
             </div>
         </div>
@@ -920,6 +966,296 @@
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('downTime').value = now.toISOString().slice(0,16);
+
+        // --- VERIFICATION LOGIC ---
+        
+        // Demo issues and suggestions database
+        const demoIssuesDB = [
+            {
+                issue: "Contact name is missing",
+                severity: "error",
+                suggestion: "Enter the primary contact's full name. This is required for service coordination.",
+                question: "Who is the responsible contact for this service request?"
+            },
+            {
+                issue: "Service location not specified",
+                severity: "error",
+                suggestion: "Provide the service location where the vehicle will be serviced.",
+                question: "Where is the vehicle being taken for service?"
+            },
+            {
+                issue: "No breakdown/complaint information provided",
+                severity: "error",
+                suggestion: "Add at least one complaint or fault description to help the technician.",
+                question: "What is the specific issue or complaint with the vehicle?"
+            },
+            {
+                issue: "VMRS system not selected",
+                severity: "warning",
+                suggestion: "Select the appropriate VMRS system code to categorize the repair.",
+                question: "Which system is being repaired (e.g., Brakes, Engine, Suspension)?"
+            },
+            {
+                issue: "No mileage/odometer reading recorded",
+                severity: "warning",
+                suggestion: "Record the current mileage for maintenance tracking and warranty purposes.",
+                question: "What is the current mileage on the vehicle?"
+            },
+            {
+                issue: "Trailer status not confirmed",
+                severity: "info",
+                suggestion: "Confirm whether the trailer is loaded or empty - this may affect repair procedures.",
+                question: "Is the trailer currently loaded with cargo?"
+            },
+            {
+                issue: "No breakdown location specified",
+                severity: "warning",
+                suggestion: "Provide the specific location where the breakdown occurred for dispatch reference.",
+                question: "Where exactly did the breakdown occur (city, highway, etc.)?"
+            },
+            {
+                issue: "Driver information incomplete",
+                severity: "info",
+                suggestion: "Include driver contact information for communication during service.",
+                question: "Should we use the primary contact's information for the driver?"
+            }
+        ];
+
+        function verifyDetails() {
+            const issues = [];
+            const suggestions = [];
+
+            // Check required fields
+            if (!document.getElementById('contactName').value.trim()) {
+                const item = demoIssuesDB[0];
+                issues.push(item.issue);
+                suggestions.push(item);
+            }
+
+            if (!document.getElementById('serviceLocation').value.trim()) {
+                const item = demoIssuesDB[1];
+                issues.push(item.issue);
+                suggestions.push(item);
+            }
+
+            // Check breakdown entries
+            const complaints = Array.from(document.querySelectorAll('input[name="complaint[]"]'));
+            if (complaints.length === 0 || !complaints[0].value.trim()) {
+                const item = demoIssuesDB[2];
+                issues.push(item.issue);
+                suggestions.push(item);
+            }
+
+            if (!document.getElementById('vmrsSystem').value) {
+                const item = demoIssuesDB[3];
+                issues.push(item.issue);
+                suggestions.push(item);
+            }
+
+            if (!document.getElementById('mileage').value) {
+                const item = demoIssuesDB[4];
+                issues.push(item.issue);
+                suggestions.push(item);
+            }
+
+            // Add demo suggestions even if no issues found
+            if (document.getElementById('trailerLoaded').value === 'no') {
+                const item = demoIssuesDB[5];
+                suggestions.push(item);
+            }
+
+            if (!document.getElementById('specificLocation').value.trim()) {
+                const item = demoIssuesDB[6];
+                suggestions.push(item);
+            }
+
+            if (!document.getElementById('driverName').value.trim()) {
+                const item = demoIssuesDB[7];
+                suggestions.push(item);
+            }
+
+            // Render issues and suggestions
+            renderVerificationResults(issues, suggestions);
+            document.getElementById('verificationModal').classList.add('active');
+        }
+
+        function renderVerificationResults(issues, suggestions) {
+            const issuesContainer = document.getElementById('issuesContainer');
+            const suggestionsContainer = document.getElementById('suggestionsContainer');
+
+            // Render Issues
+            issuesContainer.innerHTML = '';
+            if (issues.length === 0) {
+                issuesContainer.innerHTML = `
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+                        <i class="fa-solid fa-circle-check text-green-600 mt-0.5 flex-shrink-0"></i>
+                        <div>
+                            <p class="font-medium text-green-800">All checks passed!</p>
+                            <p class="text-sm text-green-700">Your report appears complete. Review suggestions below.</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                issues.forEach((issue, idx) => {
+                    const suggestion = suggestions.find(s => s.issue === issue);
+                    const severityClass = suggestion?.severity === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200';
+                    const iconClass = suggestion?.severity === 'error' ? 'text-red-600' : 'text-yellow-600';
+                    
+                    let actionButton = '';
+                    if (issue === 'Contact name is missing') {
+                        actionButton = `<button onclick="focusElement('contactName'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Contact Name
+                        </button>`;
+                    } else if (issue === 'Service location not specified') {
+                        actionButton = `<button onclick="focusElement('serviceLocation'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Service Location
+                        </button>`;
+                    } else if (issue === 'No breakdown/complaint information provided') {
+                        actionButton = `<button onclick="scrollToSection('breakdownContainer'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Breakdown Info
+                        </button>`;
+                    } else if (issue === 'VMRS system not selected') {
+                        actionButton = `<button onclick="focusElement('vmrsSystem'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to VMRS System
+                        </button>`;
+                    } else if (issue === 'No mileage/odometer reading recorded') {
+                        actionButton = `<button onclick="focusElement('mileage'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Mileage
+                        </button>`;
+                    } else if (issue === 'No breakdown location specified') {
+                        actionButton = `<button onclick="focusElement('specificLocation'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Location
+                        </button>`;
+                    } else if (issue === 'Driver information incomplete') {
+                        actionButton = `<button onclick="fillDriverFromContact(); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-check"></i> Use Primary Contact
+                        </button>`;
+                    }
+                    
+                    const issueEl = document.createElement('div');
+                    issueEl.className = `${severityClass} border rounded-lg p-4`;
+                    issueEl.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <i class="fa-solid fa-circle-exclamation ${iconClass} mt-0.5 flex-shrink-0"></i>
+                            <div class="flex-grow">
+                                <p class="font-medium text-gray-800">${issue}</p>
+                                ${suggestion ? `
+                                    <p class="text-sm text-gray-600 mt-2">${suggestion.suggestion}</p>
+                                    <p class="text-xs text-gray-500 italic mt-1">💭 ${suggestion.question}</p>
+                                ` : ''}
+                                ${actionButton}
+                            </div>
+                        </div>
+                    `;
+                    issuesContainer.appendChild(issueEl);
+                });
+            }
+
+            // Render Suggestions/Questions
+            suggestionsContainer.innerHTML = '';
+            const uniqueSuggestions = [];
+            const seenIssues = new Set();
+            
+            suggestions.forEach(s => {
+                if (!seenIssues.has(s.issue)) {
+                    seenIssues.add(s.issue);
+                    uniqueSuggestions.push(s);
+                }
+            });
+
+            uniqueSuggestions.forEach(item => {
+                if (item.severity !== 'error') { // Don't duplicate error suggestions
+                    let actionButton = '';
+                    if (item.issue === 'Trailer status not confirmed') {
+                        actionButton = `<button onclick="focusElement('trailerLoaded'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Trailer Status
+                        </button>`;
+                    } else if (item.issue === 'No breakdown location specified') {
+                        actionButton = `<button onclick="focusElement('specificLocation'); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-arrow-right"></i> Go to Location
+                        </button>`;
+                    } else if (item.issue === 'Driver information incomplete') {
+                        actionButton = `<button onclick="fillDriverFromContact(); closeVerificationModal();" class="mt-3 inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-1.5 rounded transition-colors">
+                            <i class="fa-solid fa-check"></i> Auto-fill Driver
+                        </button>`;
+                    }
+                    
+                    const suggestionEl = document.createElement('div');
+                    suggestionEl.className = 'bg-blue-50 border border-blue-200 rounded-lg p-4';
+                    suggestionEl.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <i class="fa-solid fa-lightbulb text-blue-600 mt-0.5 flex-shrink-0"></i>
+                            <div class="flex-grow">
+                                <p class="font-medium text-gray-800">${item.suggestion}</p>
+                                <p class="text-sm text-blue-700 mt-2 font-medium">Q: ${item.question}</p>
+                                ${actionButton}
+                            </div>
+                        </div>
+                    `;
+                    suggestionsContainer.appendChild(suggestionEl);
+                }
+            });
+        }
+
+        function closeVerificationModal() {
+            document.getElementById('verificationModal').classList.remove('active');
+        }
+
+        // --- ACTION HELPER FUNCTIONS ---
+        
+        function focusElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.focus();
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Add a visual highlight
+                element.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.3)';
+                setTimeout(() => {
+                    element.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
+                }, 1000);
+            }
+        }
+
+        function scrollToSection(containerId) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Highlight the first input in the section
+                const firstInput = container.querySelector('input, textarea, select');
+                if (firstInput) {
+                    setTimeout(() => {
+                        firstInput.focus();
+                        firstInput.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.3)';
+                        setTimeout(() => {
+                            firstInput.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
+                        }, 1000);
+                    }, 500);
+                }
+            }
+        }
+
+        function fillDriverFromContact() {
+            const contactName = document.getElementById('contactName').value;
+            const contactPhone = document.getElementById('contactPhone').value;
+            
+            if (!contactName || !contactPhone) {
+                alert('Please fill in the primary contact name and phone first.');
+                focusElement('contactName');
+                return;
+            }
+
+            document.getElementById('driverName').value = contactName;
+            document.getElementById('driverPhone').value = contactPhone;
+            
+            // Visual feedback
+            const driverSection = document.querySelector('.driver-section') || document.getElementById('driverName').closest('div');
+            if (driverSection) {
+                driverSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // Show success message
+            alert('Driver information auto-filled from primary contact!');
+        }
 
     </script>
 </body>
